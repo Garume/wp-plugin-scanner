@@ -49,6 +49,21 @@ class TestArchive(unittest.TestCase):
         mgr.run(["demo"])
         self.assertTrue((SAVE_ROOT / "demo/a.php").exists())
 
+    def test_progress_callback(self):
+        class DummyReporter(ExcelReporter):
+            def add_result(self, result):
+                pass
+
+        events = []
+        mgr = AuditManager(
+            downloader=mock.Mock(download=lambda slug: self.tmp / "plug"),
+            scanner=UploadScanner(),
+            reporter=DummyReporter(Path(self.tmp / "out.xlsx")),
+            save_sources=False,
+        )
+        mgr.run(["demo"], progress_cb=lambda m: events.append(m))
+        self.assertTrue(any("Checking demo" in e for e in events))
+
 
 if __name__ == "__main__":
     unittest.main()

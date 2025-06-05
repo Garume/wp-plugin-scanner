@@ -3,7 +3,7 @@ import contextlib
 import shutil
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Sequence
+from typing import Sequence, Callable
 
 from .config import SAVE_ROOT, DEFAULT_WORKERS
 from .models import PluginResult
@@ -57,20 +57,27 @@ class AuditManager:
                     shutil.rmtree(tmp_path.parent, ignore_errors=True)
         return PluginResult(slug, status)
 
-    def run(self, slugs: Sequence[str]):
+    def run(
+        self,
+        slugs: Sequence[str],
+        *,
+        progress_cb: "Callable[[str], None] | None" = None,
+    ) -> None:
+        """Process each slug and report progress."""
+        log = progress_cb or print
         if not slugs:
-            print("[!] No slugs to process.")
+            log("[!] No slugs to process.")
             return
         total = len(slugs)
         with ThreadPoolExecutor(max_workers=self.max_workers) as ex:
             futs = []
             for idx, slug in enumerate(slugs, start=1):
-                print(f"[{idx}/{total}] Checking {slug}...")
+                log(f"[{idx}/{total}] Checking {slug}...")
                 futs.append(ex.submit(self._process_slug, slug))
             for i, fut in enumerate(as_completed(futs), start=1):
                 res = fut.result()
                 self.reporter.add_result(res)
                 remaining = total - i
-                print(
+                log(
                     f"[{res.readable_time}] {res.slug}: {res.status} (remaining {remaining})"
                 )
