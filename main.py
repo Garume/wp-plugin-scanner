@@ -19,6 +19,12 @@ except Exception:  # pragma: no cover - optional GUI
 
 def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
+    if "--web" in argv or not argv:
+        if "--web" in argv:
+            argv.remove("--web")
+        from web_gui import app
+        app.run(debug=True)
+        return 0
     if "--test" in argv:
         import unittest
 
