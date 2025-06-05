@@ -1,0 +1,26 @@
+name: Build EXE
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pyinstaller
+      - name: Build EXE
+        run: pyinstaller --onefile --name wp-plugin-scanner main.py
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wp-plugin-scanner-exe
+          path: dist/wp-plugin-scanner.exe
