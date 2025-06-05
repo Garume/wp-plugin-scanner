@@ -125,6 +125,13 @@
                 <button class="btn btn-secondary" id="kw-btn" style="margin-bottom:15px;">Fetch Slugs</button>
                 <h3 class="section-title" style="font-size: 16px; margin-top: 15px;">📋 Plugin Slugs</h3>
                 <textarea class="plugin-textarea" id="slug-input" placeholder="contact-form-7, akismet, woocommerce"></textarea>
+                <h3 class="section-title" style="font-size: 16px; margin-top: 15px;">🛠️ Custom Rules</h3>
+                <div id="rules-list" style="margin-bottom:10px;"></div>
+                <div style="display:flex;gap:5px;margin-bottom:15px;">
+                    <input type="text" id="rule-name" placeholder="name" style="flex:1;padding:6px 8px;border:1px solid #ddd;border-radius:4px;">
+                    <input type="text" id="rule-pattern" placeholder="regex" style="flex:2;padding:6px 8px;border:1px solid #ddd;border-radius:4px;">
+                    <button class="btn btn-secondary" type="button" id="add-rule">Add</button>
+                </div>
                 <div class="scan-settings">
                     <h4 style="font-size: 14px; margin-bottom: 12px; font-weight: 600;">⚙️ Scan Settings</h4>
                     <div class="setting-row"><span class="setting-label">Concurrent Workers</span><div class="setting-value"><input type="number" class="number-input" id="workers" value="8" min="1" max="20"></div></div>
@@ -178,6 +185,22 @@ function addResult(row) {
     tr.innerHTML = `<td class="plugin-name">${row.slug}</td><td><span class="status-badge ${row.class}">${row.label}</span></td><td>${row.detail||''}</td><td>${row.time}</td>`;
     tbody.appendChild(tr);
 }
+let rules=[];
+function renderRules(){
+    const list=document.getElementById('rules-list');
+    list.innerHTML='';
+    rules.forEach((r,i)=>{
+        const div=document.createElement('div');
+        div.textContent=r.name+': '+r.pattern;
+        div.style.fontSize='12px';
+        const b=document.createElement('button');
+        b.textContent='❌';
+        b.className='btn-icon';
+        b.onclick=()=>{rules.splice(i,1);renderRules();};
+        div.appendChild(b);
+        list.appendChild(div);
+    });
+}
 function updateStats() {
     const rows = Array.from(document.querySelectorAll('#results-body tr'));
     document.getElementById('stat-total').textContent = rows.length;
@@ -194,7 +217,8 @@ function startScan(){
         timeout:parseInt(document.getElementById('timeout').value)||30,
         retries:parseInt(document.getElementById('retries').value)||3,
         save:document.getElementById('save-sources').checked,
-        skip:document.getElementById('skip-exists').checked
+        skip:document.getElementById('skip-exists').checked,
+        rules:rules
     };
     document.getElementById('results-body').innerHTML='';
     document.getElementById('empty-state').style.display='none';
@@ -229,6 +253,16 @@ function fetchSlugs(){
 }
 document.getElementById('scan-btn').addEventListener('click',startScan);
 document.getElementById('kw-btn').addEventListener('click',fetchSlugs);
+document.getElementById('add-rule').addEventListener('click',()=>{
+    const name=document.getElementById('rule-name').value.trim();
+    const pattern=document.getElementById('rule-pattern').value.trim();
+    if(!name||!pattern)return;
+    rules.push({name:name,pattern:pattern});
+    document.getElementById('rule-name').value='';
+    document.getElementById('rule-pattern').value='';
+    renderRules();
+});
+renderRules();
 </script>
 </body>
 </html>
