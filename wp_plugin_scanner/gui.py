@@ -2,6 +2,7 @@ import re
 import threading
 import tkinter as tk
 from tkinter import ttk, messagebox
+from typing import List
 
 from .manager import AuditManager
 from .downloader import RequestsDownloader
@@ -16,6 +17,7 @@ class AuditGUI:
         self._build_widgets()
         self.searcher = PluginSearcher()
         self.mgr = AuditManager(RequestsDownloader(), UploadScanner(), ExcelReporter())
+        self.logs: List[str] = []
 
     def _build_widgets(self):
         f = ttk.Frame(self.root, padding=10)
@@ -35,7 +37,16 @@ class AuditGUI:
         ttk.Checkbutton(f, text="Save source files", variable=self.save_var).pack(anchor="w")
         self.prog = ttk.Progressbar(f, mode="indeterminate")
         self.prog.pack(fill="x", pady=8)
+        self.status_var = tk.StringVar(value="Idle")
+        ttk.Label(f, textvariable=self.status_var).pack(fill="x")
         ttk.Button(f, text="Run Audit", command=self._run).pack(anchor="e")
+
+        # dropdown log section
+        self.log_btn = ttk.Button(f, text="Show Logs \u25BC", command=self._toggle_logs)
+        self.log_btn.pack(fill="x", pady=(5, 0))
+        self.log_frame = ttk.Frame(f)
+        self.log_box = tk.Text(self.log_frame, height=8, width=60, state="disabled")
+        self.log_box.pack(fill="both", expand=True)
 
     def _fetch_kw(self):
         kw = self.kw_entry.get().strip()
@@ -71,12 +82,33 @@ class AuditGUI:
 
     def _worker(self, slugs):
         try:
-            self.mgr.run(slugs)
-            messagebox.showinfo("Done", "Audit complete – check Excel & saved_plugins.")
+            self.mgr.run(slugs, progress_cb=self._progress_cb)
+            self.root.after(0, lambda: messagebox.showinfo(
+                "Done", "Audit complete – check Excel & saved_plugins."
+            ))
         except Exception as e:
-            messagebox.showerror("Error", str(e))
+            self.root.after(0, lambda: messagebox.showerror("Error", str(e)))
         finally:
-            self.prog.stop()
+            self.root.after(0, self.prog.stop)
+
+    def _progress_cb(self, msg: str) -> None:
+        self.logs.append(msg)
+        self.root.after(0, lambda m=msg: self._append_log(m))
+
+    def _append_log(self, msg: str) -> None:
+        self.status_var.set(msg)
+        self.log_box.configure(state="normal")
+        self.log_box.insert("end", msg + "\n")
+        self.log_box.see("end")
+        self.log_box.configure(state="disabled")
+
+    def _toggle_logs(self) -> None:
+        if self.log_frame.winfo_ismapped():
+            self.log_frame.pack_forget()
+            self.log_btn.configure(text="Show Logs \u25BC")
+        else:
+            self.log_frame.pack(fill="both", expand=True)
+            self.log_btn.configure(text="Hide Logs \u25B2")
 
     def mainloop(self):
         self.root.mainloop()
