@@ -7,7 +7,9 @@ from flask import Flask, Response, request, jsonify, render_template
 
 from wp_plugin_scanner.downloader import RequestsDownloader
 from wp_plugin_scanner.manager import AuditManager
-from wp_plugin_scanner.scanner import UploadScanner
+from wp_plugin_scanner.scanner import UploadScanner, RuleScanner, ScanRule
+from wp_plugin_scanner.config import UPLOAD_PATTERN
+import re
 from wp_plugin_scanner.searcher import PluginSearcher
 
 app = Flask(__name__, template_folder='wp_plugin_scanner/templates')
@@ -50,8 +52,20 @@ def scan():
     save = bool(opts.get('save', True))
     skip = bool(opts.get('skip', True))
 
+    rules_data = opts.get('rules') or []
+    rules: list[ScanRule] = []
+    if rules_data:
+        for r in rules_data:
+            try:
+                rules.append(ScanRule(r['name'], re.compile(r['pattern'], re.I | re.S)))
+            except (KeyError, re.error):
+                return 'invalid rule', 400
+    else:
+        rules.append(ScanRule('upload', UPLOAD_PATTERN))
+
     reporter = MemoryReporter()
-    mgr = AuditManager(RequestsDownloader(retries=retries, timeout=timeout), UploadScanner(), reporter, save_sources=save, max_workers=workers)
+    scanner = RuleScanner(rules)
+    mgr = AuditManager(RequestsDownloader(retries=retries, timeout=timeout), scanner, reporter, save_sources=save, max_workers=workers)
 
     def event_stream():
         total = len(slugs)
@@ -71,7 +85,19 @@ def scan():
                 for i, fut in enumerate(as_completed(futs), start=1):
                     res = fut.result()
                     reporter.add_result(res)
-                    q.put({'type':'result','slug':res.slug,'time':res.readable_time,'detail':res.status if res.status not in ('True','False','skipped') else '', 'class': 'status-found' if res.status=='True' else 'status-not-found' if res.status=='False' else 'status-error' if res.status.startswith('error') else 'status-scanning', 'label': 'Upload Found' if res.status=='True' else 'Clean' if res.status=='False' else 'Error' if res.status.startswith('error') else res.status})
+                    try:
+                        result_map = json.loads(res.status)
+                        found = any(result_map.values())
+                        detail = ", ".join(f"{k}:{'✓' if v else '✗'}" for k,v in result_map.items())
+                    except Exception:
+                        found = res.status == 'True'
+                        detail = res.status if res.status not in ('True','False','skipped') else ''
+                    q.put({'type':'result',
+                           'slug': res.slug,
+                           'time': res.readable_time,
+                           'detail': detail,
+                           'class': 'status-found' if found else 'status-not-found',
+                           'label': 'Issue Found' if found else 'Clean'})
                     q.put({'type':'progress','msg':f'Finished {res.slug}','count':f'{i}/{total}','percent':int(i/total*100)})
             q.put({'type':'done'})
             q.put(None)

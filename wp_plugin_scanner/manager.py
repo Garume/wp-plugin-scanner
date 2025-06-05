@@ -8,14 +8,14 @@ from typing import Sequence, Callable
 from .config import SAVE_ROOT, DEFAULT_WORKERS
 from .models import PluginResult
 from .downloader import IPluginDownloader
-from .scanner import UploadScanner
+from .scanner import UploadScanner, RuleScanner
 from .reporter import ExcelReporter
 
 class AuditManager:
     def __init__(
         self,
         downloader: IPluginDownloader,
-        scanner: UploadScanner,
+        scanner: RuleScanner,
         reporter: ExcelReporter,
         *,
         save_sources: bool = True,
@@ -45,10 +45,11 @@ class AuditManager:
             return PluginResult(slug, "skipped")
         try:
             tmp_path = self.downloader.download(slug)
-            has_upload = self.scanner.has_upload_feature(tmp_path)
+            scan_results = self.scanner.scan(tmp_path)
             if self.save_sources:
                 self._archive_sources(slug, tmp_path)
-            status = str(has_upload)
+            import json
+            status = json.dumps(scan_results, ensure_ascii=False)
         except Exception as e:
             status = f"error:{e}"
         finally:
