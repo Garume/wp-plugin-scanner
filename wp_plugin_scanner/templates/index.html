@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WP Plugin Scanner - Modern GUI</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha512-SzlrxWriC3x0WMyuK+6bJ1So9bDpZlQ6C1j1ge1QDdE1W1LSailqDg4R+9CA2gZ+XrK7jb6+84f+HOG3vm+FKw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --primary: #0073aa;
+            --primary-dark: #005a87;
+            --success: #46b450;
+            --warning: #ffb900;
+            --danger: #dc3232;
+            --dark: #23282d;
+            --gray: #6c757d;
+            --light-gray: #f1f1f1;
+            --white: #ffffff;
+            --shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            --radius: 8px;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #f5f5f7;
+            color: var(--dark);
+            line-height: 1.6;
+        }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .header { background: var(--white); box-shadow: var(--shadow); margin-bottom: 30px; border-radius: var(--radius); overflow: hidden; }
+        .header-content { padding: 30px; display: flex; justify-content: space-between; align-items: center; }
+        .logo { display: flex; align-items: center; gap: 15px; }
+        .logo-icon { width: 48px; height: 48px; background: var(--primary); border-radius: 12px; display: flex; align-items: center; justify-content: center; color: white; font-size: 24px; font-weight: bold; }
+        .logo h1 { font-size: 24px; font-weight: 600; color: var(--dark); }
+        .header-actions { display: flex; gap: 10px; }
+        .main-grid { display: grid; grid-template-columns: 350px 1fr; gap: 20px; }
+        .search-panel { background: var(--white); border-radius: var(--radius); padding: 25px; box-shadow: var(--shadow); height: fit-content; }
+        .section-title { font-size: 18px; font-weight: 600; margin-bottom: 20px; color: var(--dark); }
+        .search-box { position: relative; margin-bottom: 20px; }
+        .search-input { width: 100%; padding: 12px 45px 12px 15px; border: 2px solid #e0e0e0; border-radius: var(--radius); font-size: 14px; transition: all 0.3s; }
+        .search-input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(0, 115, 170, 0.1); }
+        .search-icon { position: absolute; right: 15px; top: 50%; transform: translateY(-50%); color: var(--gray); }
+        .plugin-textarea { width: 100%; min-height: 120px; padding: 12px; border: 2px solid #e0e0e0; border-radius: var(--radius); font-family: 'Consolas', 'Monaco', monospace; font-size: 13px; resize: vertical; margin-bottom: 15px; }
+        .plugin-textarea:focus { outline: none; border-color: var(--primary); }
+        .options-group { margin-bottom: 20px; }
+        .option-item { display: flex; align-items: center; margin-bottom: 12px; }
+        .checkbox { width: 20px; height: 20px; margin-right: 10px; cursor: pointer; }
+        .option-label { font-size: 14px; cursor: pointer; user-select: none; }
+        .scan-settings { background: #f8f9fa; padding: 15px; border-radius: var(--radius); margin-bottom: 20px; }
+        .setting-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .setting-row:last-child { margin-bottom: 0; }
+        .setting-label { font-size: 13px; color: var(--gray); }
+        .setting-value { display: flex; align-items: center; gap: 5px; }
+        .number-input { width: 60px; padding: 5px 8px; border: 1px solid #ddd; border-radius: 4px; text-align: center; }
+        .btn { padding: 12px 24px; border: none; border-radius: var(--radius); font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.3s; display: inline-flex; align-items: center; gap: 8px; }
+        .btn-primary { background: var(--primary); color: white; width: 100%; justify-content: center; }
+        .btn-primary:hover { background: var(--primary-dark); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0, 115, 170, 0.3); }
+        .btn-secondary { background: var(--light-gray); color: var(--dark); }
+        .btn-secondary:hover { background: #e0e0e0; }
+        .btn-icon { background: transparent; padding: 8px; border-radius: 50%; }
+        .btn-icon:hover { background: var(--light-gray); }
+        .results-panel { background: var(--white); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+        .results-header { padding: 20px 25px; border-bottom: 1px solid #e0e0e0; display: flex; justify-content: space-between; align-items: center; }
+        .results-stats { display: flex; gap: 30px; }
+        .stat-item { text-align: center; }
+        .stat-value { font-size: 24px; font-weight: 600; color: var(--primary); }
+        .stat-label { font-size: 12px; color: var(--gray); text-transform: uppercase; }
+        .progress-section { padding: 20px 25px; background: #f8f9fa; border-bottom: 1px solid #e0e0e0; }
+        .progress-info { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 14px; }
+        .progress-bar { width: 100%; height: 8px; background: #e0e0e0; border-radius: 4px; overflow: hidden; }
+        .progress-fill { height: 100%; background: linear-gradient(90deg, var(--primary), var(--primary-dark)); border-radius: 4px; transition: width 0.3s; position: relative; overflow: hidden; }
+        .progress-fill::after { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent); animation: shimmer 2s infinite; }
+        @keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+        .results-table { width: 100%; border-collapse: collapse; }
+        .results-table th { background: #f8f9fa; padding: 15px 25px; text-align: left; font-weight: 600; font-size: 13px; text-transform: uppercase; color: var(--gray); border-bottom: 2px solid #e0e0e0; }
+        .results-table td { padding: 15px 25px; border-bottom: 1px solid #f0f0f0; }
+        .plugin-name { font-weight: 500; color: var(--dark); }
+        .status-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 500; }
+        .status-found { background: #fef3e2; color: #b85600; }
+        .status-not-found { background: #e6f7ed; color: #1a7f3a; }
+        .status-error { background: #fee; color: #c00; }
+        .status-scanning { background: #e3f2fd; color: #1976d2; }
+        .filters { display: flex; gap: 10px; }
+        .filter-btn { padding: 6px 12px; border: 1px solid #ddd; background: white; border-radius: 20px; font-size: 13px; cursor: pointer; transition: all 0.2s; }
+        .filter-btn:hover { border-color: var(--primary); color: var(--primary); }
+        .filter-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+        .empty-state { padding: 80px 20px; text-align: center; }
+        .empty-icon { font-size: 64px; color: #ddd; margin-bottom: 20px; }
+        .empty-title { font-size: 20px; color: var(--gray); margin-bottom: 10px; }
+        .empty-text { color: var(--gray); font-size: 14px; }
+        .loading { display: inline-block; width: 20px; height: 20px; border: 3px solid rgba(0,0,0,.1); border-radius: 50%; border-top-color: var(--primary); animation: spin 1s ease-in-out infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .theme-toggle { position: relative; width: 60px; height: 30px; background: #ddd; border-radius: 30px; cursor: pointer; transition: background 0.3s; }
+        .theme-toggle.dark { background: var(--primary); }
+        .theme-toggle-slider { position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; background: white; border-radius: 50%; transition: transform 0.3s; display: flex; align-items: center; justify-content: center; font-size: 12px; }
+        .theme-toggle.dark .theme-toggle-slider { transform: translateX(30px); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="header-content">
+                <div class="logo">
+                    <div class="logo-icon">WP</div>
+                    <div>
+                        <h1>WordPress Plugin Scanner</h1>
+                        <p style="font-size: 14px; color: var(--gray); margin-top: 2px;">Security vulnerability detection for WordPress plugins</p>
+                    </div>
+                </div>
+                <div class="header-actions">
+                    <button class="btn btn-secondary" id="export-btn"><span class="fa fa-download"></span> Export Report</button>
+                    <div class="theme-toggle" onclick="this.classList.toggle('dark')">
+                        <div class="theme-toggle-slider"><span>☀️</span></div>
+                    </div>
+                </div>
+            </div>
+        </header>
+        <div class="main-grid">
+            <aside class="search-panel">
+                <h2 class="section-title">🔍 Search Plugins</h2>
+                <div class="search-box">
+                    <input type="text" class="search-input" placeholder="Search by keyword" id="kw-input">
+                    <span class="search-icon">🔍</span>
+                </div>
+                <button class="btn btn-secondary" id="kw-btn" style="margin-bottom:15px;">Fetch Slugs</button>
+                <h3 class="section-title" style="font-size: 16px; margin-top: 15px;">📋 Plugin Slugs</h3>
+                <textarea class="plugin-textarea" id="slug-input" placeholder="contact-form-7, akismet, woocommerce"></textarea>
+                <div class="scan-settings">
+                    <h4 style="font-size: 14px; margin-bottom: 12px; font-weight: 600;">⚙️ Scan Settings</h4>
+                    <div class="setting-row"><span class="setting-label">Concurrent Workers</span><div class="setting-value"><input type="number" class="number-input" id="workers" value="8" min="1" max="20"></div></div>
+                    <div class="setting-row"><span class="setting-label">Timeout (seconds)</span><div class="setting-value"><input type="number" class="number-input" id="timeout" value="30" min="10" max="120"></div></div>
+                    <div class="setting-row"><span class="setting-label">Max Retries</span><div class="setting-value"><input type="number" class="number-input" id="retries" value="3" min="0" max="10"></div></div>
+                </div>
+                <div class="options-group">
+                    <h4 style="font-size: 14px; margin-bottom: 12px; font-weight: 600;">📁 Options</h4>
+                    <div class="option-item"><input type="checkbox" id="save-sources" class="checkbox" checked><label for="save-sources" class="option-label">Save source files for review</label></div>
+                    <div class="option-item"><input type="checkbox" id="skip-exists" class="checkbox" checked><label for="skip-exists" class="option-label">Skip already scanned plugins</label></div>
+                </div>
+                <button class="btn btn-primary" id="scan-btn"><span>▶️</span> Start Scanning</button>
+            </aside>
+            <main class="results-panel">
+                <div class="results-header">
+                    <h2 class="section-title" style="margin:0;">📊 Scan Results</h2>
+                    <div class="results-stats" id="stats">
+                        <div class="stat-item"><div class="stat-value" id="stat-total">0</div><div class="stat-label">Total</div></div>
+                        <div class="stat-item"><div class="stat-value" id="stat-found" style="color: var(--warning);">0</div><div class="stat-label">Found</div></div>
+                        <div class="stat-item"><div class="stat-value" id="stat-clean" style="color: var(--success);">0</div><div class="stat-label">Clean</div></div>
+                        <div class="stat-item"><div class="stat-value" id="stat-errors" style="color: var(--danger);">0</div><div class="stat-label">Errors</div></div>
+                    </div>
+                </div>
+                <div class="progress-section" id="progress-section" style="display:none;">
+                    <div class="progress-info"><span id="progress-msg">Starting...</span><span id="progress-count"></span></div>
+                    <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:0%;"></div></div>
+                </div>
+                <div class="results-header" style="padding: 15px 25px; background: #f8f9fa;">
+                    <div class="filters">
+                        <button class="filter-btn active" data-filter="all">All</button>
+                        <button class="filter-btn" data-filter="found">Upload Found</button>
+                        <button class="filter-btn" data-filter="clean">Clean</button>
+                        <button class="filter-btn" data-filter="error">Errors</button>
+                    </div>
+                    <input type="text" id="result-filter" placeholder="Filter results..." style="padding: 6px 12px; border: 1px solid #ddd; border-radius: 20px; font-size: 13px;">
+                </div>
+                <table class="results-table" id="results-table">
+                    <thead>
+                        <tr><th>Plugin Name</th><th>Status</th><th>Details</th><th>Scanned At</th></tr>
+                    </thead>
+                    <tbody id="results-body"></tbody>
+                </table>
+                <div class="empty-state" id="empty-state"><div class="empty-icon">📭</div><h3 class="empty-title">No Scan Results Yet</h3><p class="empty-text">Enter plugin slugs or search for plugins to start scanning</p></div>
+            </main>
+        </div>
+    </div>
+<script>
+function addResult(row) {
+    const tbody = document.getElementById('results-body');
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td class="plugin-name">${row.slug}</td><td><span class="status-badge ${row.class}">${row.label}</span></td><td>${row.detail||''}</td><td>${row.time}</td>`;
+    tbody.appendChild(tr);
+}
+function updateStats() {
+    const rows = Array.from(document.querySelectorAll('#results-body tr'));
+    document.getElementById('stat-total').textContent = rows.length;
+    document.getElementById('stat-found').textContent = rows.filter(r=>r.querySelector('.status-badge').classList.contains('status-found')).length;
+    document.getElementById('stat-clean').textContent = rows.filter(r=>r.querySelector('.status-badge').classList.contains('status-not-found')).length;
+    document.getElementById('stat-errors').textContent = rows.filter(r=>r.querySelector('.status-badge').classList.contains('status-error')).length;
+}
+function startScan(){
+    const slugs = document.getElementById('slug-input').value.split(/[\s,]+/).filter(Boolean);
+    if(!slugs.length){alert('Enter at least one plugin slug');return;}
+    const opts={
+        slugs:slugs,
+        workers:parseInt(document.getElementById('workers').value)||8,
+        timeout:parseInt(document.getElementById('timeout').value)||30,
+        retries:parseInt(document.getElementById('retries').value)||3,
+        save:document.getElementById('save-sources').checked,
+        skip:document.getElementById('skip-exists').checked
+    };
+    document.getElementById('results-body').innerHTML='';
+    document.getElementById('empty-state').style.display='none';
+    const evtSource = new EventSource('/scan?'+new URLSearchParams({data:JSON.stringify(opts)}));
+    document.getElementById('progress-section').style.display='block';
+    evtSource.onmessage=function(e){
+        if(!e.data)return;
+        const obj=JSON.parse(e.data);
+        if(obj.type==='progress'){
+            document.getElementById('progress-msg').textContent=obj.msg;
+            document.getElementById('progress-count').textContent=obj.count;
+            document.getElementById('progress-fill').style.width=obj.percent+'%';
+        } else if(obj.type==='result'){
+            addResult(obj);
+            updateStats();
+        } else if(obj.type==='done'){
+            evtSource.close();
+            document.getElementById('progress-msg').textContent='Completed';
+        }
+    };
+    evtSource.onerror=function(){evtSource.close();};
+}
+function fetchSlugs(){
+    const kw=document.getElementById('kw-input').value.trim();
+    if(!kw)return;
+    fetch('/search?kw='+encodeURIComponent(kw)).then(r=>r.json()).then(d=>{
+        if(d.slugs){
+            const input=document.getElementById('slug-input');
+            input.value += (input.value?"\n":"") + d.slugs.join(' ');
+        }
+    });
+}
+document.getElementById('scan-btn').addEventListener('click',startScan);
+document.getElementById('kw-btn').addEventListener('click',fetchSlugs);
+</script>
+</body>
+</html>
