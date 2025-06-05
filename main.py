@@ -162,13 +162,46 @@ class PluginSearcher:
             if r.status_code != 200:
                 break
             matches = SLUG_RE.findall(r.text)
-            if not matches:
-                break
+            new_found = False
             for m in matches:
                 if m not in slugs:
                     slugs.append(m)
+                    new_found = True
                     if len(slugs) >= limit:
                         break
+            if not matches or not new_found:
+                break
+            page += 1
+        return slugs
+
+
+class PluginLister:
+    """Retrieve all plugin slugs from the WordPress plugin API."""
+
+    API_URL = (
+        "https://api.wordpress.org/plugins/info/1.2/"
+        "?action=query_plugins&request[page]={page}"
+    )
+
+    def __init__(self, session: requests.Session | None = None):
+        self.session = session or requests.Session()
+
+    def list_all(self) -> list[str]:
+        slugs: list[str] = []
+        page = 1
+        while True:
+            url = self.API_URL.format(page=page)
+            r = self.session.get(url, timeout=DEFAULT_TIMEOUT)
+            if r.status_code != 200:
+                break
+            data = r.json()
+            plugins = data.get("plugins", [])
+            if not plugins:
+                break
+            for p in plugins:
+                slug = p.get("slug")
+                if slug:
+                    slugs.append(slug)
             page += 1
         return slugs
 
@@ -315,8 +348,9 @@ class TestSearcher(unittest.TestCase):
     def test_parse(self):
         html_snippet = "<a href=\"https://wordpress.org/plugins/foo/\">Foo</a>"
         with mock.patch.object(requests.Session, "get") as mget:
-            mget.return_value.status_code = 200
-            mget.return_value.text = html_snippet
+            first = mock.Mock(status_code=200, text=html_snippet)
+            second = mock.Mock(status_code=200, text="")
+            mget.side_effect = [first, second]
             s = PluginSearcher()
             result = s.search("foo", limit=5)
             self.assertEqual(result, ["foo"])
@@ -324,19 +358,34 @@ class TestSearcher(unittest.TestCase):
 # quick archive unit test retained
 class TestArchive(unittest.TestCase):
     def setUp(self):
-        self.tmp = Path(tempfile.mkdtemp()); (self.tmp / "plug").mkdir()
-        (self.tmp / "plug/a.php").write_text("<?php wp_handle_upload(); ?>")
+        self.tmp = Path(tempfile.mkdtemp())
+        self.download = self.tmp / "download"
+        (self.download / "plug").mkdir(parents=True)
+        (self.download / "plug/a.php").write_text("<?php wp_handle_upload(); ?>")
     def tearDown(self):
         shutil.rmtree(self.tmp, ignore_errors=True); shutil.rmtree(SAVE_ROOT, ignore_errors=True)
     def test_archive(self):
         mgr = AuditManager(
-            downloader=mock.Mock(download=lambda slug: self.tmp / "plug"),
+            downloader=mock.Mock(download=lambda slug: self.download / "plug"),
             scanner=UploadScanner(),
             reporter=ExcelReporter(Path(self.tmp / "out.xlsx")),
             save_sources=True,
         )
         mgr.run(["demo"])
         self.assertTrue((SAVE_ROOT / "demo/a.php").exists())
+
+class TestLister(unittest.TestCase):
+    def test_all(self):
+        page1 = {"plugins": [{"slug": "p1"}, {"slug": "p2"}]}
+        page2 = {"plugins": []}
+        with mock.patch.object(requests.Session, "get") as mget:
+            mget.side_effect = [
+                mock.Mock(status_code=200, json=lambda: page1),
+                mock.Mock(status_code=200, json=lambda: page2),
+            ]
+            lister = PluginLister()
+            slugs = lister.list_all()
+            self.assertEqual(slugs, ["p1", "p2"])
 
 # ============================  MAIN  =================================== #
 if __name__ == "__main__":
@@ -351,6 +400,7 @@ if __name__ == "__main__":
         save_flag = True; sys.argv.remove("--save")
 
     search_kw = None
+    fetch_all = False
     for i, arg in enumerate(sys.argv):
         if arg == "--search" and i + 1 < len(sys.argv):
             search_kw = sys.argv.pop(i + 1)
@@ -360,11 +410,20 @@ if __name__ == "__main__":
             search_kw = arg.split("=", 1)[1]
             sys.argv.remove(arg)
             break
+        elif arg == "--all":
+            fetch_all = True
+            sys.argv.remove(arg)
+            break
 
     if len(sys.argv) > 1:
         explicit_slugs: List[str] = sys.argv[1:]
     else:
         explicit_slugs = []
+
+    if fetch_all:
+        slugs_from_all = PluginLister().list_all()
+        explicit_slugs.extend(slugs_from_all)
+        print(f"[i] Added {len(slugs_from_all)} slugs from WP API.")
 
     if search_kw:
         slugs_from_kw = PluginSearcher().search(search_kw)
