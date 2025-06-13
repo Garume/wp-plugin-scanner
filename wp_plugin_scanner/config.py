@@ -5,7 +5,7 @@ DEFAULT_WORKERS = 8
 DEFAULT_RETRIES = 3
 DEFAULT_TIMEOUT = 30
 BACKOFF_FACTOR = 3
-EXCEL_PATH = Path("plugin_upload_audit.xlsx")
+DB_PATH = Path("scan_results.db")
 SAVE_ROOT = Path("saved_plugins")
 MAX_SEARCH_RESULTS = 50
 

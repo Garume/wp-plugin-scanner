@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Scan Results</title>
+    <style>
+        table {border-collapse: collapse; width: 100%;}
+        th, td {border: 1px solid #ccc; padding: 8px; text-align: left;}
+        nav {margin-top: 10px;}
+    </style>
+</head>
+<body>
+<h1>Scan Results</h1>
+<table>
+    <tr><th>Slug</th><th>Status</th><th>Timestamp</th></tr>
+    {% for r in results %}
+    <tr><td>{{ r.slug }}</td><td>{{ r.status }}</td><td>{{ r.readable_time }}</td></tr>
+    {% endfor %}
+</table>
+<nav>
+    {% if page > 1 %}
+        <a href="?page={{ page-1 }}&per_page={{ per_page }}">Prev</a>
+    {% endif %}
+    Page {{ page }} / {{ (total // per_page) + (1 if total % per_page else 0) }}
+    {% if page * per_page < total %}
+        <a href="?page={{ page+1 }}&per_page={{ per_page }}">Next</a>
+    {% endif %}
+</nav>
+</body>
+</html>

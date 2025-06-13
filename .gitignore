@@ -1,2 +1,4 @@
 saved_plugins/*
-plugin_upload_audit.xlsx__pycache__/
+plugin_upload_audit.xlsx
+__pycache__/
+scan_results.db

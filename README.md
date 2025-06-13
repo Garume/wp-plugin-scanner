@@ -6,7 +6,7 @@ This project scans WordPress plugins for upload features.
 - Download plugins from WordPress.org
 - Search plugins by keyword
 - Detect upload-related code
-- Save results to `plugin_upload_audit.xlsx`
+- Save results to `scan_results.db` (SQLite)
 - Optional GUI and web interface
 
 ## Installation
@@ -23,7 +23,7 @@ Options:
 - `--web`: launch the web GUI
 - With no arguments, opens the desktop GUI (requires Tkinter)
 
-Results are stored in Excel and source files are saved under `saved_plugins`.
+Results are stored in a SQLite database (`scan_results.db`) and source files are saved under `saved_plugins`.
 
 Run tests with:
 ```

@@ -6,7 +6,7 @@
 - WordPress.orgからプラグインを取得
 - キーワード検索によるプラグイン取得
 - アップロード関連コードの検出
-- 結果は`plugin_upload_audit.xlsx`に保存
+- 結果は`scan_results.db`(SQLite)に保存
 - GUIやWebインターフェースも利用可能
 
 ## インストール
@@ -23,7 +23,7 @@ python main.py [オプション] [スラッグ ...]
 - `--web` : Web GUIを起動
 - 引数無し: Tkinter GUIを起動します
 
-結果は`saved_plugins`フォルダーとExcelファイルに保存されます。
+結果はSQLiteデータベース(`scan_results.db`)と`saved_plugins`フォルダーに保存されます。
 
 テスト実行:
 ```

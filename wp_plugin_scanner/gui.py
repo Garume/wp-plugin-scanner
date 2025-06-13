@@ -7,7 +7,7 @@ from typing import List
 from .manager import AuditManager
 from .downloader import RequestsDownloader
 from .scanner import UploadScanner
-from .reporter import ExcelReporter
+from .reporter import SQLiteReporter
 from .searcher import PluginSearcher
 
 class AuditGUI:
@@ -16,7 +16,7 @@ class AuditGUI:
         self.root.title("WP Plugin Upload Auditor")
         self._build_widgets()
         self.searcher = PluginSearcher()
-        self.mgr = AuditManager(RequestsDownloader(), UploadScanner(), ExcelReporter())
+        self.mgr = AuditManager(RequestsDownloader(), UploadScanner(), SQLiteReporter())
         self.logs: List[str] = []
 
     def _build_widgets(self):
