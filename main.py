@@ -6,7 +6,7 @@ from typing import List
 
 from wp_plugin_scanner.downloader import RequestsDownloader
 from wp_plugin_scanner.scanner import UploadScanner
-from wp_plugin_scanner.reporter import ExcelReporter
+from wp_plugin_scanner.reporter import SQLiteReporter
 from wp_plugin_scanner.searcher import PluginSearcher
 from wp_plugin_scanner.manager import AuditManager
 
@@ -62,7 +62,7 @@ def main(argv: list[str] | None = None) -> int:
         manager = AuditManager(
             RequestsDownloader(),
             UploadScanner(),
-            ExcelReporter(),
+            SQLiteReporter(),
             save_sources=save_flag,
         )
         manager.run(explicit_slugs)

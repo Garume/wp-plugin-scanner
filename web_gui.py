@@ -9,10 +9,12 @@ from wp_plugin_scanner.downloader import RequestsDownloader
 from wp_plugin_scanner.manager import AuditManager
 from wp_plugin_scanner.scanner import UploadScanner
 from wp_plugin_scanner.searcher import PluginSearcher
+from wp_plugin_scanner.reporter import SQLiteReporter
 
 app = Flask(__name__, template_folder='wp_plugin_scanner/templates')
 
 searcher = PluginSearcher()
+db_reporter = SQLiteReporter()
 
 @app.route('/')
 def index():
@@ -26,6 +28,14 @@ def search():
     except Exception as e:
         return jsonify({'error': str(e)}), 400
     return jsonify({'slugs': slugs})
+
+@app.route('/results')
+def results():
+    page = int(request.args.get('page', 1))
+    per_page = int(request.args.get('per_page', 20))
+    total = db_reporter.count()
+    rows = db_reporter.fetch_page(page, per_page)
+    return render_template('results.html', results=rows, page=page, per_page=per_page, total=total)
 
 class MemoryReporter:
     def __init__(self):
@@ -71,6 +81,7 @@ def scan():
                 for i, fut in enumerate(as_completed(futs), start=1):
                     res = fut.result()
                     reporter.add_result(res)
+                    db_reporter.add_result(res)
                     q.put({'type':'result','slug':res.slug,'time':res.readable_time,'detail':res.status if res.status not in ('True','False','skipped') else '', 'class': 'status-found' if res.status=='True' else 'status-not-found' if res.status=='False' else 'status-error' if res.status.startswith('error') else 'status-scanning', 'label': 'Upload Found' if res.status=='True' else 'Clean' if res.status=='False' else 'Error' if res.status.startswith('error') else res.status})
                     q.put({'type':'progress','msg':f'Finished {res.slug}','count':f'{i}/{total}','percent':int(i/total*100)})
             q.put({'type':'done'})

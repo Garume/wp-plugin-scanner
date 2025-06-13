@@ -9,14 +9,14 @@ from .config import SAVE_ROOT, DEFAULT_WORKERS
 from .models import PluginResult
 from .downloader import IPluginDownloader
 from .scanner import UploadScanner
-from .reporter import ExcelReporter
+from .reporter import SQLiteReporter
 
 class AuditManager:
     def __init__(
         self,
         downloader: IPluginDownloader,
         scanner: UploadScanner,
-        reporter: ExcelReporter,
+        reporter: SQLiteReporter,
         *,
         save_sources: bool = True,
         max_workers: int = DEFAULT_WORKERS,
