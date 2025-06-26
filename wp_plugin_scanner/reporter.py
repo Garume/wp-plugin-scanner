@@ -2,18 +2,18 @@ import threading
 from pathlib import Path
 import pandas as pd
 
-from .config import EXCEL_PATH
+from .config import CSV_PATH  
 from .models import PluginResult
 
-class ExcelReporter:
-    def __init__(self, path: Path = EXCEL_PATH):
+class CsvReporter:
+    def __init__(self, path: Path = CSV_PATH):
         self.path = path
         self._lock = threading.Lock()
         self._load()
 
     def _load(self):
         if self.path.exists():
-            self.df = pd.read_excel(self.path)
+            self.df = pd.read_csv(self.path)
         else:
             self.df = pd.DataFrame(columns=["slug", "upload", "timestamp"])
 
@@ -23,4 +23,4 @@ class ExcelReporter:
     def add_result(self, result: PluginResult):
         with self._lock:
             self.df.loc[len(self.df)] = [result.slug, result.status, result.readable_time]
-            self.df.to_excel(self.path, index=False)
+            self.df.to_csv(self.path, index=False)

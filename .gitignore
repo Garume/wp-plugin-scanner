@@ -1,2 +1,7 @@
 saved_plugins/*
 plugin_upload_audit.xlsx__pycache__/
+scanned_plugins/*
+plugins/*
+plugin_upload_audit.csv
+# Ignore Python cache files
+__pycache__/
