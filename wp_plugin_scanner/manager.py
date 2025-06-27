@@ -9,14 +9,14 @@ from .config import SAVE_ROOT, DEFAULT_WORKERS
 from .models import PluginResult
 from .downloader import IPluginDownloader
 from .scanner import UploadScanner
-from .reporter import CsvReporter
+from .reporter import IReporter
 
 class AuditManager:
     def __init__(
         self,
         downloader: IPluginDownloader,
         scanner: UploadScanner,
-        reporter: CsvReporter,
+        reporter: IReporter,
         *,
         save_sources: bool = True,
         max_workers: int = DEFAULT_WORKERS,
@@ -45,17 +45,22 @@ class AuditManager:
             return PluginResult(slug, "skipped")
         try:
             tmp_path = self.downloader.download(slug)
-            has_upload = self.scanner.has_upload_feature(tmp_path)
+            upload_matches, files_scanned = self.scanner.scan_for_upload_features(tmp_path)
+            has_upload = len(upload_matches) > 0
+            
             if self.save_sources:
                 self._archive_sources(slug, tmp_path)
+                
             status = str(has_upload)
+            result = PluginResult(slug, status, upload_matches=upload_matches, files_scanned=files_scanned)
         except Exception as e:
             status = f"error:{e}"
+            result = PluginResult(slug, status)
         finally:
             with contextlib.suppress(Exception):
                 if "tmp_path" in locals() and tmp_path.exists():
                     shutil.rmtree(tmp_path.parent, ignore_errors=True)
-        return PluginResult(slug, status)
+        return result
 
     def run(
         self,

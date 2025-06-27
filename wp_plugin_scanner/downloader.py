@@ -33,18 +33,18 @@ class RequestsDownloader(IPluginDownloader):
         )
         self.session.mount("https://", HTTPAdapter(max_retries=retry_conf))
 
-def download(self, slug: str) -> Path:
-    url = ZIP_URL_TMPL.format(slug=slug)
-    try:
-        res = self.session.get(url, timeout=self.timeout)
-        res.raise_for_status()
-    except requests.RequestException as e:
-        raise RuntimeError(f"Download failed for {slug}: {e}") from e
-    tmp_root = Path(tempfile.mkdtemp())
-    with zipfile.ZipFile(io.BytesIO(res.content)) as zf:
-        zf.extractall(tmp_root)
-        top = zf.namelist()[0].split("/")[0]
-    return tmp_root / top
+    def download(self, slug: str) -> Path:
+        url = ZIP_URL_TMPL.format(slug=slug)
+        try:
+            res = self.session.get(url, timeout=self.timeout)
+            res.raise_for_status()
+        except requests.RequestException as e:
+            raise RuntimeError(f"Download failed for {slug}: {e}") from e
+        tmp_root = Path(tempfile.mkdtemp())
+        with zipfile.ZipFile(io.BytesIO(res.content)) as zf:
+            zf.extractall(tmp_root)
+            top = zf.namelist()[0].split("/")[0]
+        return tmp_root / top
 
 def download_true_plugin_zips(destination: Path):
     """upload=True のプラグインZIPを destination にダウンロード"""

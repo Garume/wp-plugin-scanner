@@ -7,7 +7,7 @@ from pathlib import Path
 
 from wp_plugin_scanner.downloader import RequestsDownloader, download_true_plugin_zips
 from wp_plugin_scanner.scanner import UploadScanner
-from wp_plugin_scanner.reporter import CsvReporter
+from wp_plugin_scanner.reporter import CsvReporter, SqliteReporter
 from wp_plugin_scanner.searcher import PluginSearcher
 from wp_plugin_scanner.manager import AuditManager
 from wp_plugin_scanner.local_scanner import scan_local_plugin
@@ -37,6 +37,15 @@ def main(argv: list[str] | None = None) -> int:
     clean_plugins = "--clean-plugins" in argv
     if clean_plugins :
         argv.remove("--clean-plugins")
+        
+    # Database format option
+    db_format = "csv"  # default
+    if "--db-sqlite" in argv:
+        db_format = "sqlite"
+        argv.remove("--db-sqlite")
+    elif "--db-csv" in argv:
+        db_format = "csv"
+        argv.remove("--db-csv")
         
     # if "--web" in argv or not argv:
     #     if "--web" in argv:
@@ -88,10 +97,16 @@ def main(argv: list[str] | None = None) -> int:
         
 
     if explicit_slugs:
+        # Select reporter based on format
+        if db_format == "sqlite":
+            reporter = SqliteReporter()
+        else:
+            reporter = CsvReporter()
+            
         manager = AuditManager(
             RequestsDownloader(),
             UploadScanner(),
-            CsvReporter(),
+            reporter,
             save_sources=save_flag,
         )
         manager.run(explicit_slugs)
@@ -109,11 +124,11 @@ def main(argv: list[str] | None = None) -> int:
             clean_saved_plugins()
 
             
-    # else:
-    #     if tk is None:
-    #         print("GUI unavailable; supply slugs or --search <kw>.")
-    #         return 1
-    #     AuditGUI().mainloop()
+    else:
+        if tk is None:
+            print("GUI unavailable; supply slugs or --search <kw>.")
+            return 1
+        AuditGUI().mainloop()
         return 0
     
     if do_extract_matches:

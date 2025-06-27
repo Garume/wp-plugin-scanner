@@ -6,8 +6,9 @@ DEFAULT_RETRIES = 3
 DEFAULT_TIMEOUT = 30
 BACKOFF_FACTOR = 3
 CSV_PATH = Path("plugin_upload_audit.csv")
+CSV_DETAILS_PATH = Path("plugin_upload_audit_details.csv")
 SAVE_ROOT = Path("saved_plugins")
-MAX_SEARCH_RESULTS = 50
+MAX_SEARCH_RESULTS = 100
 
 UPLOAD_PATTERN = re.compile(
     rb"(wp_handle_upload|media_handle_upload|\$_FILES\b)",
