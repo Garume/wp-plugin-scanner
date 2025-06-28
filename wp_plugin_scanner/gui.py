@@ -50,8 +50,13 @@ class AuditGUI:
         self.txt = tk.Text(audit_frame, height=4, width=60)
         self.txt.pack(fill="x", padx=10, pady=5)
 
-        self.save_var = tk.BooleanVar(value=True)
+        self.save_var = tk.BooleanVar(value=False)
         ttk.Checkbutton(audit_frame, text="ソースファイルを保存", variable=self.save_var).pack(anchor="w", padx=10)
+        
+        # zip file save section
+        self.save_zip_var = tk.BooleanVar(value=True)
+        ttk.Checkbutton(audit_frame, text="ソースファイルを保存(zip)", variable=self.save_zip_var).pack(anchor="w", padx=10)
+
         
         # Database format selection
         db_frame = ttk.Frame(audit_frame)
@@ -318,7 +323,7 @@ class AuditGUI:
             reporter = CsvReporter()
             output_msg = "CSV & saved_plugins"
             
-        self.mgr = AuditManager(RequestsDownloader(), UploadScanner(), reporter, save_sources=self.save_var.get())
+        self.mgr = AuditManager(RequestsDownloader(), UploadScanner(), reporter, save_sources=self.save_var.get(), save_zip=self.save_zip_var.get())
         self.output_msg = output_msg
         self.prog.start()
         threading.Thread(target=lambda: self._worker(slugs), daemon=True).start()

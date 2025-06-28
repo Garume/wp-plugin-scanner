@@ -3,7 +3,7 @@ import re
 import pandas as pd
 from pathlib import Path
 
-from wp_plugin_scanner.config import SAVE_ROOT, CSV_PATH, UPLOAD_PATTERN
+from wp_plugin_scanner.config import SAVE_SOURCE, CSV_PATH, UPLOAD_PATTERN
 
 
 # 出力フォルダ
@@ -61,7 +61,7 @@ def scan_all_true_plugins():
     true_slugs = df[df["upload"] == "True"]["slug"].astype(str)
 
     for slug in true_slugs:
-        plugin_dir = SAVE_ROOT / slug
+        plugin_dir = SAVE_SOURCE / slug
         if plugin_dir.exists():
             print(f"[i] Scanning {slug}")
             scan_plugin_dir(slug, plugin_dir)
