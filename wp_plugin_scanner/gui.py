@@ -1,7 +1,7 @@
 import re
 import threading
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, filedialog
 from typing import List
 from pathlib import Path
 
@@ -18,7 +18,11 @@ class AuditGUI:
     def __init__(self):
         self.root = tk.Tk()
         self.root.title("WPプラグインアップロード監査ツール")
-        self.root.geometry("800x600")
+        self.root.geometry("800x800")
+        
+        self.db_prog = None  # データベースタブ専用プログレスバー
+        self.db_status_var = tk.StringVar(value="準備完了")
+        
         self._build_widgets()
         self.searcher = PluginSearcher()
         self.plugin_lister = PluginLister()
@@ -27,6 +31,7 @@ class AuditGUI:
         self.logs: List[str] = []
         self.fetched_plugins: List[str] = []
         self.fetch_running = False
+        self.stop_zip_download = False
 
     def _build_widgets(self):
         # Create notebook for tabs
@@ -301,12 +306,21 @@ class AuditGUI:
         ttk.Button(action_frame, text="監査結果表示", command=self._view_audit_results).pack(side="left", padx=5)
         ttk.Button(action_frame, text="スラッグを監査にコピー", command=self._copy_slug_to_audit).pack(side="left", padx=5)
         ttk.Button(action_frame, text="結果エクスポート", command=self._export_database_results).pack(side="left", padx=5)
+        ttk.Button(action_frame, text="アップロードZIP保存", command=self._download_true_upload_plugins_from_db).pack(side="left", padx=5)
         ttk.Button(action_frame, text="選択した項目を削除", command=self._delete_selected_plugin).pack(side="right", padx=5)
+        
+        self.db_prog = ttk.Progressbar(db_frame, mode="indeterminate")
+        self.db_prog.pack(fill="x", padx=10, pady=(5, 0))
+
+        # show status
+        ttk.Label(db_frame, textvariable=self.db_status_var).pack(fill="x", padx=10, pady=(0, 10))
         
         # Initialize with basic stats and load data
         self._update_database_stats()
         # Auto-load plugins on tab creation (with a longer delay to ensure tab is fully initialized)
         self.root.after(500, self._apply_database_filter)
+        
+        ttk.Button(db_frame, text="保存停止", command=self._stop_zip_download).pack(pady=(0, 10))
 
     def _run(self):
         raw = self.txt.get("1.0", "end").strip()
@@ -1208,7 +1222,92 @@ class AuditGUI:
             
         except Exception as e:
             messagebox.showerror("Error", f"Delete failed:\n{str(e)}")
+            
+    def _download_true_upload_plugins_from_db(self):
+        from tkinter import filedialog, messagebox
+        import sqlite3
+        import requests
+        from .config import ZIP_URL_TMPL
+        from pathlib import Path
 
+        # 保存先フォルダ選択
+        folder = filedialog.askdirectory(title="保存先フォルダを選択")
+        if not folder:
+            return
+        self.zip_save_folder = Path(folder)  # ← ここが重要
+        self.zip_save_folder.mkdir(parents=True, exist_ok=True)
+
+        def fetch_slugs_from_db():
+            db_paths = ["plugin_upload_audit.db", "plugin_details.db"]
+            slugs = set()
+            for db_path in db_paths:
+                if not Path(db_path).exists():
+                    continue
+                try:
+                    with sqlite3.connect(db_path) as conn:
+                        cursor = conn.cursor()
+                        tables = {row[0] for row in cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+                        if "plugin_audit_results" in tables:
+                            cursor.execute("SELECT slug FROM plugin_audit_results WHERE upload = 'True'")
+                            slugs.update(row[0] for row in cursor.fetchall())
+                        elif "upload_scan_results" in tables:
+                            cursor.execute("SELECT slug FROM upload_scan_results WHERE has_upload = 1")
+                            slugs.update(row[0] for row in cursor.fetchall())
+                except Exception as e:
+                    print(f"[!] DB読み込みエラー: {db_path} → {e}")
+            return sorted(slugs)
+
+        def worker():
+            self.root.after(0, self.db_prog.start)
+            self.root.after(0, lambda: self.db_status_var.set("保存処理を開始しています..."))
+            self.stop_zip_download = False
+
+            slugs = fetch_slugs_from_db()
+            if not slugs:
+                self.root.after(0, self.db_prog.stop)
+                self.root.after(0, lambda: self.db_status_var.set("アップロード機能ありのプラグインが見つかりませんでした。"))
+                self.root.after(0, lambda: messagebox.showwarning("警告", "アップロード機能ありのプラグインが見つかりませんでした。"))
+                return
+
+            count = 0
+            total = len(slugs)
+            for i, slug in enumerate(slugs, 1):
+                if self.stop_zip_download:
+                    self.root.after(0, self.db_prog.stop)
+                    self.root.after(0, lambda: self.db_status_var.set("保存処理を中止しました"))
+                    return
+
+                try:
+                    out_path = self.zip_save_folder / f"{slug}.zip"
+                    if out_path.exists():
+                        print(f"[=] スキップ（既存）: {out_path}")
+                        continue
+                    url = ZIP_URL_TMPL.format(slug=slug)
+                    res = requests.get(url, timeout=30)
+                    res.raise_for_status()
+                    out_path.write_bytes(res.content)
+                    print(f"[✔] 保存: {out_path}")
+                    count += 1
+                except Exception as e:
+                    print(f"[!] ダウンロード失敗: {slug} → {e}")
+
+                # ステータス更新
+                msg = f"[{i}/{total}] {slug} のZIPを保存中..."
+                self.root.after(0, lambda m=msg: self.db_status_var.set(m))
+
+            self.stop_zip_download = False
+            self.root.after(0, self.db_prog.stop)
+            self.root.after(0, lambda: self.db_status_var.set("保存処理が完了しました"))
+            self.root.after(0, lambda: messagebox.showinfo("完了", f"{count} 件のプラグインを保存しました。"))
+
+        import threading
+        threading.Thread(target=worker, daemon=True).start()
+
+
+    def _stop_zip_download(self):
+        self.stop_zip_download = True
+        self.db_status_var.set("保存停止が要求されました…")
+        
     # Auto-save helper methods
     def _auto_save_search_results(self, plugins: List[str]):
         """Automatically save search results to database."""
@@ -1422,6 +1521,8 @@ class AuditGUI:
                 print(f"CSVからの監査結果取得エラー: {e}")
         
         return audit_data
+    
+    
 
     def mainloop(self):
         self.root.mainloop()
