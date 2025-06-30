@@ -49,6 +49,9 @@ class CsvReporter(IReporter):
         return slug in set(self.df["slug"].astype(str))
 
     def add_result(self, result: PluginResult):
+        if result.status == "skipped":
+            print(f"DEBUG: {result.slug} has already been processed, skipping.")
+            return  # Do not overwrite existing results
         with self._lock:
             # 既存の同じslugのデータを削除（重複を避けるため）
             self.df = self.df[self.df['slug'] != result.slug]

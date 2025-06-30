@@ -58,7 +58,8 @@ class AuditManager:
         if not slug:
             return PluginResult(slug, "error:empty slug")
         if self.reporter.already_done(slug):
-            return PluginResult(slug, "skipped")
+            print(f"DEBUG: {slug} has already been processed, skipping.")
+            return None  # Do not overwrite existing results
         try:
             tmp_path = self.downloader.download(slug)
             upload_matches, files_scanned = self.scanner.scan_for_upload_features(tmp_path)
@@ -100,8 +101,11 @@ class AuditManager:
                 futs.append(ex.submit(self._process_slug, slug))
             for i, fut in enumerate(as_completed(futs), start=1):
                 res = fut.result()
-                self.reporter.add_result(res)
-                remaining = total - i
-                log(
-                    f"[{res.readable_time}] {res.slug}: {res.status} (remaining {remaining})"
-                )
+                if res is not None:
+                    self.reporter.add_result(res)
+                    remaining = total - i
+                    log(f"[{res.readable_time}] {res.slug}: {res.status} (remaining {remaining})")
+                else:
+                    remaining = total - i
+                    log(f"[✓] skipped (remaining {remaining})")
+                    
