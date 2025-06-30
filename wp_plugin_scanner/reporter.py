@@ -189,6 +189,19 @@ class SqliteReporter(IReporter):
                     details_reporter = PluginDetailsSqliteReporter(self.db_path)
                     details_reporter.save_upload_scan_result(result)
 
+class CombinedReporter(IReporter):
+    """複数のレポーターに結果を同時に送信する"""
+    def __init__(self, reporters: list[IReporter]):
+        self.reporters = reporters
+
+    def already_done(self, slug: str) -> bool:
+        # skip if any reporter already has saved result for this slug
+        return any(r.already_done(slug) for r in self.reporters)
+
+    def add_result(self, result: PluginResult) -> None:
+        for r in self.reporters:
+            r.add_result(result)
+
 
 class PluginDetailsSqliteReporter:
     """Reporter for storing detailed plugin information in SQLite."""

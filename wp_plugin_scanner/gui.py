@@ -8,7 +8,7 @@ from pathlib import Path
 from .manager import AuditManager
 from .downloader import RequestsDownloader
 from .scanner import UploadScanner
-from .reporter import CsvReporter, SqliteReporter, PluginDetailsSqliteReporter
+from .reporter import CsvReporter, SqliteReporter, PluginDetailsSqliteReporter, CombinedReporter
 from .searcher import PluginSearcher
 from .plugin_lister import PluginLister
 from .plugin_fetcher import PluginDetailFetcher
@@ -68,8 +68,10 @@ class AuditGUI:
         db_frame.pack(fill="x", padx=10, pady=(5, 0))
         ttk.Label(db_frame, text="出力形式:").pack(side="left")
         self.db_format_var = tk.StringVar(value="csv")
-        ttk.Radiobutton(db_frame, text="CSV", variable=self.db_format_var, value="csv").pack(side="left", padx=(10, 5))
-        ttk.Radiobutton(db_frame, text="SQLite", variable=self.db_format_var, value="sqlite").pack(side="left")
+        self.save_csv_var = tk.BooleanVar(value=True)
+        self.save_sqlite_var = tk.BooleanVar(value=True)
+        ttk.Checkbutton(db_frame, text="CSV", variable=self.save_csv_var).pack(side="left", padx=(10, 5))
+        ttk.Checkbutton(db_frame, text="SQLite", variable=self.save_sqlite_var).pack(side="left")
         
         self.prog = ttk.Progressbar(audit_frame, mode="indeterminate")
         self.prog.pack(fill="x", padx=10, pady=8)
@@ -330,15 +332,29 @@ class AuditGUI:
         slugs = re.split(r"[\s,]+", raw)
         
         # Create manager with selected reporter
-        if self.db_format_var.get() == "sqlite":
-            reporter = SqliteReporter()
-            output_msg = "SQLite DB & saved_plugins"
+        # if self.db_format_var.get() == "sqlite":
+        #     reporter = SqliteReporter()
+        #     output_msg = "SQLite DB & saved_plugins"
+        # else:
+        #     reporter = CsvReporter()
+        #     output_msg = "CSV & saved_plugins"
+        
+        reporters = []
+        if self.save_csv_var.get():
+            reporters.append(CsvReporter())
+        if self.save_sqlite_var.get():
+            reporters.append(SqliteReporter())
+
+        if not reporters:
+            messagebox.showerror("エラー", "少なくとも1つの保存形式（CSVまたはSQLite）を選択してください。")
+            return
+
+        if len(reporters) == 1:
+            reporter = reporters[0]
         else:
-            reporter = CsvReporter()
-            output_msg = "CSV & saved_plugins"
-            
+            reporter = CombinedReporter(reporters)
+
         self.mgr = AuditManager(RequestsDownloader(), UploadScanner(), reporter, save_sources=self.save_var.get(), save_zip=self.save_zip_var.get())
-        self.output_msg = output_msg
         self.prog.start()
         threading.Thread(target=lambda: self._worker(slugs), daemon=True).start()
 
@@ -346,7 +362,7 @@ class AuditGUI:
         try:
             self.mgr.run(slugs, progress_cb=self._progress_cb)
             self.root.after(0, lambda: messagebox.showinfo(
-                "完了", f"監査が完了しました – {self.output_msg} を確認してください。"
+                "完了", f"監査が完了しました"
             ))
         except Exception as e:
             self.root.after(0, lambda: messagebox.showerror("エラー", str(e)))
