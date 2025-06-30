@@ -1026,6 +1026,13 @@ class AuditGUI:
 
     def _refresh_database(self):
         """Refresh the current view."""
+        try:
+        # if plugin_details don't exist, initialize it
+            self.details_reporter._init_db()
+        except Exception as e:
+            print(f"DEBUG: failed initialize plugin_details table: {e}")
+    
+        # Apply current filter settings to refresh database view
         self._apply_database_filter()
     
     def _apply_database_filter(self):
