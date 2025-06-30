@@ -330,15 +330,7 @@ class AuditGUI:
             messagebox.showerror("エラー", "少なくとも1つのスラッグまたは検索キーワードを入力してください。")
             return
         slugs = re.split(r"[\s,]+", raw)
-        
-        # Create manager with selected reporter
-        # if self.db_format_var.get() == "sqlite":
-        #     reporter = SqliteReporter()
-        #     output_msg = "SQLite DB & saved_plugins"
-        # else:
-        #     reporter = CsvReporter()
-        #     output_msg = "CSV & saved_plugins"
-        
+                
         reporters = []
         if self.save_csv_var.get():
             reporters.append(CsvReporter())
