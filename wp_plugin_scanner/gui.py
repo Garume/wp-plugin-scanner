@@ -227,12 +227,12 @@ class AuditGUI:
         
         # Sort controls
         ttk.Label(search_row2, text="ソート:").pack(side="left", padx=(10, 0))
-        self.db_sort_var = tk.StringVar(value="name")
-        sort_options = ["名前", "インストール数", "更新日", "評価", "ダウンロード数", "監査日時"]
-        sort_values = ["name", "active_installs_raw", "last_updated", "rating", "downloaded", "audit_timestamp"]
+        self.db_sort_var = tk.StringVar(value="slug")
+        sort_options = ["スラッグ","名前", "インストール数", "更新日", "評価", "ダウンロード数", "監査日時"]
+        sort_values = ["slug","name", "active_installs_raw", "last_updated", "rating", "downloaded", "audit_timestamp"]
         self.sort_mapping = dict(zip(sort_options, sort_values))
         sort_combo = ttk.Combobox(search_row2, textvariable=self.db_sort_var, values=sort_options, state="readonly", width=15)
-        self.db_sort_var.set("名前")
+        self.db_sort_var.set("スラッグ")
         sort_combo.pack(side="left", padx=5)
         
         self.db_sort_desc = tk.BooleanVar(value=False)
@@ -1105,7 +1105,7 @@ class AuditGUI:
         """Load all plugins without any filters."""
         self.db_search_var.set("")
         self.audit_filter_var.set("全て")
-        self.db_sort_var.set("名前")
+        self.db_sort_var.set("スラッグ")
         self.db_sort_desc.set(False)
         self._apply_database_filter()
 
