@@ -7,7 +7,8 @@ DEFAULT_TIMEOUT = 30
 BACKOFF_FACTOR = 3
 CSV_PATH = Path("plugin_upload_audit.csv")
 CSV_DETAILS_PATH = Path("plugin_upload_audit_details.csv")
-SAVE_ROOT = Path("saved_plugins")
+SAVE_SOURCE = Path("saved_sources")
+SAVE_ZIP = Path("saved_zips")
 MAX_SEARCH_RESULTS = 100
 
 UPLOAD_PATTERN = re.compile(

@@ -2,7 +2,7 @@ from pathlib import Path
 import pandas as pd
 import shutil
 
-from .config import SAVE_ROOT, CSV_PATH
+from .config import SAVE_SOURCE, CSV_PATH
 
 def clean_saved_plugins_only_true():
     """plugin_upload_audit.csv を読み込み、upload=True 以外の保存済みプラグインを削除。"""
@@ -17,7 +17,7 @@ def clean_saved_plugins_only_true():
         return
 
     true_slugs = set(df[df["upload"] == "True"]["slug"].astype(str))
-    all_dirs = list(SAVE_ROOT.glob("*"))
+    all_dirs = list(SAVE_SOURCE.glob("*"))
 
     removed = 0
     for d in all_dirs:
@@ -33,12 +33,12 @@ def clean_saved_plugins_only_true():
 
 def clean_saved_plugins():
     """全ての保存済みプラグインを削除。"""
-    if not SAVE_ROOT.exists():
+    if not SAVE_SOURCE.exists():
         print("[!] Save root does not exist; skipping cleanup.")
         return
 
     try:
-        shutil.rmtree(SAVE_ROOT)
+        shutil.rmtree(SAVE_SOURCE)
         print("[i] All saved plugins have been removed.")
     except Exception as e:
         print(f"[!] Failed to remove saved plugins: {e}")

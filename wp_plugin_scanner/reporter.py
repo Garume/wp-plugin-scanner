@@ -607,6 +607,7 @@ class PluginDetailsSqliteReporter:
                 
                 # Add ORDER BY
                 valid_sort_fields = {
+                    "slug": "slug",
                     "name": "name",
                     "active_installs_raw": "active_installs_raw",
                     "downloaded": "downloaded", 
