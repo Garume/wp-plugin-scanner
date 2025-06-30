@@ -3,6 +3,8 @@ plugin_upload_audit.xlsx__pycache__/
 scanned_plugins/*
 plugins/*
 plugin_upload_audit.csv
+plugin_upload_audit.db
+plugin_details.db
 saved_sources/*
 saved_zips/*
 # Ignore Python cache files
