@@ -1444,20 +1444,87 @@ class AuditGUI:
             ttk.Label(audit_window, text="監査結果が見つかりません。").pack(pady=20)
             return
         
-        # Treeviewを作成
+        # create filter frame
         columns = ("slug", "upload", "timestamp", "files_scanned", "matches_count", "file_path", "line_number", "line_content", "matched_pattern")
+        filter_frame = ttk.Frame(audit_window)
+        filter_frame.pack(fill="x", padx=10, pady=5)
+
+        ttk.Label(filter_frame, text="対象カラム:").pack(side="left")
+
+        filter_column_var = tk.StringVar(value="slug")
+        filter_column_combo = ttk.Combobox(filter_frame, textvariable=filter_column_var, state="readonly", width=15)
+        filter_column_combo["values"] = [
+            "slug", "upload", "timestamp", "files_scanned", "matches_count",
+            "file_path", "line_number", "line_content", "matched_pattern"
+        ]
+        filter_column_combo.pack(side="left", padx=5)
+
+        ttk.Label(filter_frame, text="検索語:").pack(side="left")
+        filter_value_var = tk.StringVar()
+        filter_entry = ttk.Entry(filter_frame, textvariable=filter_value_var, width=30)
+        filter_entry.pack(side="left", padx=5)
+
+        def apply_column_filter():
+            column = filter_column_var.get()
+            keyword = filter_value_var.get().strip().lower()
+            if not column:
+                return
+
+            tree.delete(*tree.get_children())
+            col_index = columns.index(column)
+            for row in audit_data:
+                cell_value = str(row[col_index]).lower()
+                if keyword in cell_value:
+                    tree.insert("", "end", values=row)
+
+        def clear_column_filter():
+            filter_value_var.set("")
+            tree.delete(*tree.get_children())
+            for row in audit_data:
+                tree.insert("", "end", values=row)
+
+        ttk.Button(filter_frame, text="検索", command=apply_column_filter).pack(side="left", padx=5)
+        ttk.Button(filter_frame, text="クリア", command=clear_column_filter).pack(side="left", padx=5)
+        
+        # Treeviewを作成
         tree = ttk.Treeview(audit_window, columns=columns, show="headings", height=20)
+        sort_state = {"column": None, "descending": False}
+        
+        def sort_treeview_by_column(col):
+            col_index = columns.index(col)
+            descending = sort_state["column"] == col and not sort_state["descending"]
+            sort_state["column"] = col
+            sort_state["descending"] = descending
+
+            # 再描画用に audit_data をフィルタ＋ソート
+            filtered_data = []
+            for row_id in tree.get_children():
+                values = tree.item(row_id)["values"]
+                filtered_data.append(values)
+
+            try:
+                filtered_data.sort(key=lambda row: convert_sort_value(row[col_index]), reverse=descending)
+            except Exception as e:
+                print(f"[ソートエラー] {e}")
+
+            # 再描画
+            tree.delete(*tree.get_children())
+            for row in filtered_data:
+                tree.insert("", "end", values=row)
+
+        def convert_sort_value(val):
+            try:
+                return int(val)
+            except (ValueError, TypeError):
+                try:
+                    return float(val)
+                except (ValueError, TypeError):
+                    return str(val).lower()
+
         
         # ヘッダーを設定
-        tree.heading("slug", text="プラグインスラッグ")
-        tree.heading("upload", text="アップロード機能")
-        tree.heading("timestamp", text="スキャン日時")
-        tree.heading("files_scanned", text="スキャンファイル数")
-        tree.heading("matches_count", text="マッチ数")
-        tree.heading("file_path", text="ファイルパス")
-        tree.heading("line_number", text="行番号")
-        tree.heading("line_content", text="行内容")
-        tree.heading("matched_pattern", text="マッチパターン")
+        for col in columns:
+            tree.heading(col, text=col, command=lambda c=col: sort_treeview_by_column(c))
         
         # カラム幅を設定
         tree.column("slug", width=120)
