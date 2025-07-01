@@ -4,6 +4,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 from typing import List
 from pathlib import Path
+import csv
 
 from .manager import AuditManager
 from .downloader import RequestsDownloader
@@ -1435,7 +1436,7 @@ class AuditGUI:
         # 新しいウィンドウを作成
         audit_window = tk.Toplevel(self.root)
         audit_window.title("監査結果詳細")
-        audit_window.geometry("1000x600")
+        audit_window.geometry("1200x600")
         
         # CSVとSQLiteの両方から監査結果を取得
         audit_data = self._get_audit_results()
@@ -1551,8 +1552,32 @@ class AuditGUI:
         scrollbar_y.pack(side="right", fill="y")
         scrollbar_x.pack(side="bottom", fill="x")
         
-        # 閉じるボタン
-        ttk.Button(audit_window, text="閉じる", command=audit_window.destroy).pack(pady=5)
+        def export_visible_to_csv():
+            save_path = filedialog.asksaveasfilename(
+                title="保存先を選択", defaultextension=".csv",
+                filetypes=[("CSVファイル", "*.csv")]
+            )
+            if not save_path:
+                return
+
+            try:
+                with open(save_path, "w", newline="", encoding="utf-8") as f:
+                    writer = csv.writer(f)
+                    writer.writerow(columns)  # ヘッダー
+                    for row_id in tree.get_children():
+                        values = tree.item(row_id)["values"]
+                        writer.writerow(values)
+
+                messagebox.showinfo("完了", f"CSVにエクスポートしました：\n{save_path}")
+            except Exception as e:
+                messagebox.showerror("エラー", f"エクスポート失敗: {e}")
+        
+        # 閉じる、CSVエクスポートボタン
+        button_frame = ttk.Frame(audit_window)
+        button_frame.pack(fill="x", pady=5)
+
+        ttk.Button(button_frame, text="CSVエクスポート", command=export_visible_to_csv).pack(side="top", padx=5, pady=5)
+        ttk.Button(button_frame, text="閉じる", command=audit_window.destroy).pack(side="bottom", padx=5,pady=10)
 
     def _get_audit_results(self):
         """CSV/SQLiteから監査結果を取得"""
