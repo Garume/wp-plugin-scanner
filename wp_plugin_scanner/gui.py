@@ -1,14 +1,15 @@
 import re
 import threading
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, filedialog
 from typing import List
 from pathlib import Path
+import csv
 
 from .manager import AuditManager
 from .downloader import RequestsDownloader
 from .scanner import UploadScanner
-from .reporter import CsvReporter, SqliteReporter, PluginDetailsSqliteReporter
+from .reporter import CsvReporter, SqliteReporter, PluginDetailsSqliteReporter, CombinedReporter
 from .searcher import PluginSearcher
 from .plugin_lister import PluginLister
 from .plugin_fetcher import PluginDetailFetcher
@@ -18,7 +19,11 @@ class AuditGUI:
     def __init__(self):
         self.root = tk.Tk()
         self.root.title("WPプラグインアップロード監査ツール")
-        self.root.geometry("800x600")
+        self.root.geometry("800x800")
+        
+        self.db_prog = None  # データベースタブ専用プログレスバー
+        self.db_status_var = tk.StringVar(value="準備完了")
+        
         self._build_widgets()
         self.searcher = PluginSearcher()
         self.plugin_lister = PluginLister()
@@ -27,6 +32,7 @@ class AuditGUI:
         self.logs: List[str] = []
         self.fetched_plugins: List[str] = []
         self.fetch_running = False
+        self.stop_zip_download = False
 
     def _build_widgets(self):
         # Create notebook for tabs
@@ -50,16 +56,23 @@ class AuditGUI:
         self.txt = tk.Text(audit_frame, height=4, width=60)
         self.txt.pack(fill="x", padx=10, pady=5)
 
-        self.save_var = tk.BooleanVar(value=True)
+        self.save_var = tk.BooleanVar(value=False)
         ttk.Checkbutton(audit_frame, text="ソースファイルを保存", variable=self.save_var).pack(anchor="w", padx=10)
+        
+        # zip file save section
+        self.save_zip_var = tk.BooleanVar(value=True)
+        ttk.Checkbutton(audit_frame, text="ソースファイルを保存(zip)", variable=self.save_zip_var).pack(anchor="w", padx=10)
+
         
         # Database format selection
         db_frame = ttk.Frame(audit_frame)
         db_frame.pack(fill="x", padx=10, pady=(5, 0))
         ttk.Label(db_frame, text="出力形式:").pack(side="left")
         self.db_format_var = tk.StringVar(value="csv")
-        ttk.Radiobutton(db_frame, text="CSV", variable=self.db_format_var, value="csv").pack(side="left", padx=(10, 5))
-        ttk.Radiobutton(db_frame, text="SQLite", variable=self.db_format_var, value="sqlite").pack(side="left")
+        self.save_csv_var = tk.BooleanVar(value=True)
+        self.save_sqlite_var = tk.BooleanVar(value=True)
+        ttk.Checkbutton(db_frame, text="CSV", variable=self.save_csv_var).pack(side="left", padx=(10, 5))
+        ttk.Checkbutton(db_frame, text="SQLite", variable=self.save_sqlite_var).pack(side="left")
         
         self.prog = ttk.Progressbar(audit_frame, mode="indeterminate")
         self.prog.pack(fill="x", padx=10, pady=8)
@@ -217,12 +230,12 @@ class AuditGUI:
         
         # Sort controls
         ttk.Label(search_row2, text="ソート:").pack(side="left", padx=(10, 0))
-        self.db_sort_var = tk.StringVar(value="name")
-        sort_options = ["名前", "インストール数", "更新日", "評価", "ダウンロード数", "監査日時"]
-        sort_values = ["name", "active_installs_raw", "last_updated", "rating", "downloaded", "audit_timestamp"]
+        self.db_sort_var = tk.StringVar(value="slug")
+        sort_options = ["スラッグ","名前", "インストール数", "更新日", "評価", "ダウンロード数", "監査日時"]
+        sort_values = ["slug","name", "active_installs_raw", "last_updated", "rating", "downloaded", "audit_timestamp"]
         self.sort_mapping = dict(zip(sort_options, sort_values))
         sort_combo = ttk.Combobox(search_row2, textvariable=self.db_sort_var, values=sort_options, state="readonly", width=15)
-        self.db_sort_var.set("名前")
+        self.db_sort_var.set("スラッグ")
         sort_combo.pack(side="left", padx=5)
         
         self.db_sort_desc = tk.BooleanVar(value=False)
@@ -296,12 +309,21 @@ class AuditGUI:
         ttk.Button(action_frame, text="監査結果表示", command=self._view_audit_results).pack(side="left", padx=5)
         ttk.Button(action_frame, text="スラッグを監査にコピー", command=self._copy_slug_to_audit).pack(side="left", padx=5)
         ttk.Button(action_frame, text="結果エクスポート", command=self._export_database_results).pack(side="left", padx=5)
+        ttk.Button(action_frame, text="アップロードZIP保存", command=self._download_true_upload_plugins_from_db).pack(side="left", padx=5)
         ttk.Button(action_frame, text="選択した項目を削除", command=self._delete_selected_plugin).pack(side="right", padx=5)
+        
+        self.db_prog = ttk.Progressbar(db_frame, mode="indeterminate")
+        self.db_prog.pack(fill="x", padx=10, pady=(5, 0))
+
+        # show status
+        ttk.Label(db_frame, textvariable=self.db_status_var).pack(fill="x", padx=10, pady=(0, 10))
         
         # Initialize with basic stats and load data
         self._update_database_stats()
         # Auto-load plugins on tab creation (with a longer delay to ensure tab is fully initialized)
         self.root.after(500, self._apply_database_filter)
+        
+        ttk.Button(db_frame, text="保存停止", command=self._stop_zip_download).pack(pady=(0, 10))
 
     def _run(self):
         raw = self.txt.get("1.0", "end").strip()
@@ -309,17 +331,23 @@ class AuditGUI:
             messagebox.showerror("エラー", "少なくとも1つのスラッグまたは検索キーワードを入力してください。")
             return
         slugs = re.split(r"[\s,]+", raw)
-        
-        # Create manager with selected reporter
-        if self.db_format_var.get() == "sqlite":
-            reporter = SqliteReporter()
-            output_msg = "SQLite DB & saved_plugins"
+                
+        reporters = []
+        if self.save_csv_var.get():
+            reporters.append(CsvReporter())
+        if self.save_sqlite_var.get():
+            reporters.append(SqliteReporter())
+
+        if not reporters:
+            messagebox.showerror("エラー", "少なくとも1つの保存形式（CSVまたはSQLite）を選択してください。")
+            return
+
+        if len(reporters) == 1:
+            reporter = reporters[0]
         else:
-            reporter = CsvReporter()
-            output_msg = "CSV & saved_plugins"
-            
-        self.mgr = AuditManager(RequestsDownloader(), UploadScanner(), reporter, save_sources=self.save_var.get())
-        self.output_msg = output_msg
+            reporter = CombinedReporter(reporters)
+
+        self.mgr = AuditManager(RequestsDownloader(), UploadScanner(), reporter, save_sources=self.save_var.get(), save_zip=self.save_zip_var.get())
         self.prog.start()
         threading.Thread(target=lambda: self._worker(slugs), daemon=True).start()
 
@@ -327,7 +355,7 @@ class AuditGUI:
         try:
             self.mgr.run(slugs, progress_cb=self._progress_cb)
             self.root.after(0, lambda: messagebox.showinfo(
-                "完了", f"監査が完了しました – {self.output_msg} を確認してください。"
+                "完了", f"監査が完了しました"
             ))
         except Exception as e:
             self.root.after(0, lambda: messagebox.showerror("エラー", str(e)))
@@ -999,6 +1027,13 @@ class AuditGUI:
 
     def _refresh_database(self):
         """Refresh the current view."""
+        try:
+        # if plugin_details don't exist, initialize it
+            self.details_reporter._init_db()
+        except Exception as e:
+            print(f"DEBUG: failed initialize plugin_details table: {e}")
+    
+        # Apply current filter settings to refresh database view
         self._apply_database_filter()
     
     def _apply_database_filter(self):
@@ -1086,7 +1121,7 @@ class AuditGUI:
         """Load all plugins without any filters."""
         self.db_search_var.set("")
         self.audit_filter_var.set("全て")
-        self.db_sort_var.set("名前")
+        self.db_sort_var.set("スラッグ")
         self.db_sort_desc.set(False)
         self._apply_database_filter()
 
@@ -1203,7 +1238,92 @@ class AuditGUI:
             
         except Exception as e:
             messagebox.showerror("Error", f"Delete failed:\n{str(e)}")
+            
+    def _download_true_upload_plugins_from_db(self):
+        from tkinter import filedialog, messagebox
+        import sqlite3
+        import requests
+        from .config import ZIP_URL_TMPL
+        from pathlib import Path
 
+        # 保存先フォルダ選択
+        folder = filedialog.askdirectory(title="保存先フォルダを選択")
+        if not folder:
+            return
+        self.zip_save_folder = Path(folder)  # ← ここが重要
+        self.zip_save_folder.mkdir(parents=True, exist_ok=True)
+
+        def fetch_slugs_from_db():
+            db_paths = ["plugin_upload_audit.db", "plugin_details.db"]
+            slugs = set()
+            for db_path in db_paths:
+                if not Path(db_path).exists():
+                    continue
+                try:
+                    with sqlite3.connect(db_path) as conn:
+                        cursor = conn.cursor()
+                        tables = {row[0] for row in cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+                        if "plugin_audit_results" in tables:
+                            cursor.execute("SELECT slug FROM plugin_audit_results WHERE upload = 'True'")
+                            slugs.update(row[0] for row in cursor.fetchall())
+                        elif "upload_scan_results" in tables:
+                            cursor.execute("SELECT slug FROM upload_scan_results WHERE has_upload = 1")
+                            slugs.update(row[0] for row in cursor.fetchall())
+                except Exception as e:
+                    print(f"[!] DB読み込みエラー: {db_path} → {e}")
+            return sorted(slugs)
+
+        def worker():
+            self.root.after(0, self.db_prog.start)
+            self.root.after(0, lambda: self.db_status_var.set("保存処理を開始しています..."))
+            self.stop_zip_download = False
+
+            slugs = fetch_slugs_from_db()
+            if not slugs:
+                self.root.after(0, self.db_prog.stop)
+                self.root.after(0, lambda: self.db_status_var.set("アップロード機能ありのプラグインが見つかりませんでした。"))
+                self.root.after(0, lambda: messagebox.showwarning("警告", "アップロード機能ありのプラグインが見つかりませんでした。"))
+                return
+
+            count = 0
+            total = len(slugs)
+            for i, slug in enumerate(slugs, 1):
+                if self.stop_zip_download:
+                    self.root.after(0, self.db_prog.stop)
+                    self.root.after(0, lambda: self.db_status_var.set("保存処理を中止しました"))
+                    return
+
+                try:
+                    out_path = self.zip_save_folder / f"{slug}.zip"
+                    if out_path.exists():
+                        print(f"[=] スキップ（既存）: {out_path}")
+                        continue
+                    url = ZIP_URL_TMPL.format(slug=slug)
+                    res = requests.get(url, timeout=30)
+                    res.raise_for_status()
+                    out_path.write_bytes(res.content)
+                    print(f"[✔] 保存: {out_path}")
+                    count += 1
+                except Exception as e:
+                    print(f"[!] ダウンロード失敗: {slug} → {e}")
+
+                # ステータス更新
+                msg = f"[{i}/{total}] {slug} のZIPを保存中..."
+                self.root.after(0, lambda m=msg: self.db_status_var.set(m))
+
+            self.stop_zip_download = False
+            self.root.after(0, self.db_prog.stop)
+            self.root.after(0, lambda: self.db_status_var.set("保存処理が完了しました"))
+            self.root.after(0, lambda: messagebox.showinfo("完了", f"{count} 件のプラグインを保存しました。"))
+
+        import threading
+        threading.Thread(target=worker, daemon=True).start()
+
+
+    def _stop_zip_download(self):
+        self.stop_zip_download = True
+        self.db_status_var.set("保存停止が要求されました…")
+        
     # Auto-save helper methods
     def _auto_save_search_results(self, plugins: List[str]):
         """Automatically save search results to database."""
@@ -1316,7 +1436,7 @@ class AuditGUI:
         # 新しいウィンドウを作成
         audit_window = tk.Toplevel(self.root)
         audit_window.title("監査結果詳細")
-        audit_window.geometry("1000x600")
+        audit_window.geometry("1200x600")
         
         # CSVとSQLiteの両方から監査結果を取得
         audit_data = self._get_audit_results()
@@ -1325,20 +1445,87 @@ class AuditGUI:
             ttk.Label(audit_window, text="監査結果が見つかりません。").pack(pady=20)
             return
         
-        # Treeviewを作成
+        # create filter frame
         columns = ("slug", "upload", "timestamp", "files_scanned", "matches_count", "file_path", "line_number", "line_content", "matched_pattern")
+        filter_frame = ttk.Frame(audit_window)
+        filter_frame.pack(fill="x", padx=10, pady=5)
+
+        ttk.Label(filter_frame, text="対象カラム:").pack(side="left")
+
+        filter_column_var = tk.StringVar(value="slug")
+        filter_column_combo = ttk.Combobox(filter_frame, textvariable=filter_column_var, state="readonly", width=15)
+        filter_column_combo["values"] = [
+            "slug", "upload", "timestamp", "files_scanned", "matches_count",
+            "file_path", "line_number", "line_content", "matched_pattern"
+        ]
+        filter_column_combo.pack(side="left", padx=5)
+
+        ttk.Label(filter_frame, text="検索語:").pack(side="left")
+        filter_value_var = tk.StringVar()
+        filter_entry = ttk.Entry(filter_frame, textvariable=filter_value_var, width=30)
+        filter_entry.pack(side="left", padx=5)
+
+        def apply_column_filter():
+            column = filter_column_var.get()
+            keyword = filter_value_var.get().strip().lower()
+            if not column:
+                return
+
+            tree.delete(*tree.get_children())
+            col_index = columns.index(column)
+            for row in audit_data:
+                cell_value = str(row[col_index]).lower()
+                if keyword in cell_value:
+                    tree.insert("", "end", values=row)
+
+        def clear_column_filter():
+            filter_value_var.set("")
+            tree.delete(*tree.get_children())
+            for row in audit_data:
+                tree.insert("", "end", values=row)
+
+        ttk.Button(filter_frame, text="検索", command=apply_column_filter).pack(side="left", padx=5)
+        ttk.Button(filter_frame, text="クリア", command=clear_column_filter).pack(side="left", padx=5)
+        
+        # Treeviewを作成
         tree = ttk.Treeview(audit_window, columns=columns, show="headings", height=20)
+        sort_state = {"column": None, "descending": False}
+        
+        def sort_treeview_by_column(col):
+            col_index = columns.index(col)
+            descending = sort_state["column"] == col and not sort_state["descending"]
+            sort_state["column"] = col
+            sort_state["descending"] = descending
+
+            # 再描画用に audit_data をフィルタ＋ソート
+            filtered_data = []
+            for row_id in tree.get_children():
+                values = tree.item(row_id)["values"]
+                filtered_data.append(values)
+
+            try:
+                filtered_data.sort(key=lambda row: convert_sort_value(row[col_index]), reverse=descending)
+            except Exception as e:
+                print(f"[ソートエラー] {e}")
+
+            # 再描画
+            tree.delete(*tree.get_children())
+            for row in filtered_data:
+                tree.insert("", "end", values=row)
+
+        def convert_sort_value(val):
+            try:
+                return int(val)
+            except (ValueError, TypeError):
+                try:
+                    return float(val)
+                except (ValueError, TypeError):
+                    return str(val).lower()
+
         
         # ヘッダーを設定
-        tree.heading("slug", text="プラグインスラッグ")
-        tree.heading("upload", text="アップロード機能")
-        tree.heading("timestamp", text="スキャン日時")
-        tree.heading("files_scanned", text="スキャンファイル数")
-        tree.heading("matches_count", text="マッチ数")
-        tree.heading("file_path", text="ファイルパス")
-        tree.heading("line_number", text="行番号")
-        tree.heading("line_content", text="行内容")
-        tree.heading("matched_pattern", text="マッチパターン")
+        for col in columns:
+            tree.heading(col, text=col, command=lambda c=col: sort_treeview_by_column(c))
         
         # カラム幅を設定
         tree.column("slug", width=120)
@@ -1365,8 +1552,32 @@ class AuditGUI:
         scrollbar_y.pack(side="right", fill="y")
         scrollbar_x.pack(side="bottom", fill="x")
         
-        # 閉じるボタン
-        ttk.Button(audit_window, text="閉じる", command=audit_window.destroy).pack(pady=5)
+        def export_visible_to_csv():
+            save_path = filedialog.asksaveasfilename(
+                title="保存先を選択", defaultextension=".csv",
+                filetypes=[("CSVファイル", "*.csv")]
+            )
+            if not save_path:
+                return
+
+            try:
+                with open(save_path, "w", newline="", encoding="utf-8") as f:
+                    writer = csv.writer(f)
+                    writer.writerow(columns)  # ヘッダー
+                    for row_id in tree.get_children():
+                        values = tree.item(row_id)["values"]
+                        writer.writerow(values)
+
+                messagebox.showinfo("完了", f"CSVにエクスポートしました：\n{save_path}")
+            except Exception as e:
+                messagebox.showerror("エラー", f"エクスポート失敗: {e}")
+        
+        # 閉じる、CSVエクスポートボタン
+        button_frame = ttk.Frame(audit_window)
+        button_frame.pack(fill="x", pady=5)
+
+        ttk.Button(button_frame, text="CSVエクスポート", command=export_visible_to_csv).pack(side="top", padx=5, pady=5)
+        ttk.Button(button_frame, text="閉じる", command=audit_window.destroy).pack(side="bottom", padx=5,pady=10)
 
     def _get_audit_results(self):
         """CSV/SQLiteから監査結果を取得"""
@@ -1417,6 +1628,8 @@ class AuditGUI:
                 print(f"CSVからの監査結果取得エラー: {e}")
         
         return audit_data
+    
+    
 
     def mainloop(self):
         self.root.mainloop()

@@ -10,7 +10,7 @@ from wp_plugin_scanner.searcher import PluginSearcher
 from wp_plugin_scanner.manager import AuditManager
 from wp_plugin_scanner.scanner import UploadScanner
 from wp_plugin_scanner.reporter import ExcelReporter
-from wp_plugin_scanner.config import SAVE_ROOT
+from wp_plugin_scanner.config import SAVE_SOURCE
 
 
 class TestSearcher(unittest.TestCase):
@@ -33,7 +33,7 @@ class TestArchive(unittest.TestCase):
 
     def tearDown(self):
         shutil.rmtree(self.tmp, ignore_errors=True)
-        shutil.rmtree(SAVE_ROOT, ignore_errors=True)
+        shutil.rmtree(SAVE_SOURCE, ignore_errors=True)
 
     def test_archive(self):
         class DummyReporter(ExcelReporter):
@@ -47,7 +47,7 @@ class TestArchive(unittest.TestCase):
             save_sources=True,
         )
         mgr.run(["demo"])
-        self.assertTrue((SAVE_ROOT / "demo/a.php").exists())
+        self.assertTrue((SAVE_SOURCE / "demo/a.php").exists())
 
     def test_progress_callback(self):
         class DummyReporter(ExcelReporter):

@@ -49,6 +49,9 @@ class CsvReporter(IReporter):
         return slug in set(self.df["slug"].astype(str))
 
     def add_result(self, result: PluginResult):
+        if result.status == "skipped":
+            print(f"DEBUG: {result.slug} has already been processed, skipping.")
+            return  # Do not overwrite existing results
         with self._lock:
             # 既存の同じslugのデータを削除（重複を避けるため）
             self.df = self.df[self.df['slug'] != result.slug]
@@ -185,6 +188,19 @@ class SqliteReporter(IReporter):
                 if hasattr(result, 'upload_matches') and result.upload_matches:
                     details_reporter = PluginDetailsSqliteReporter(self.db_path)
                     details_reporter.save_upload_scan_result(result)
+
+class CombinedReporter(IReporter):
+    """複数のレポーターに結果を同時に送信する"""
+    def __init__(self, reporters: list[IReporter]):
+        self.reporters = reporters
+
+    def already_done(self, slug: str) -> bool:
+        # skip if any reporter already has saved result for this slug
+        return any(r.already_done(slug) for r in self.reporters)
+
+    def add_result(self, result: PluginResult) -> None:
+        for r in self.reporters:
+            r.add_result(result)
 
 
 class PluginDetailsSqliteReporter:
@@ -607,6 +623,7 @@ class PluginDetailsSqliteReporter:
                 
                 # Add ORDER BY
                 valid_sort_fields = {
+                    "slug": "slug",
                     "name": "name",
                     "active_installs_raw": "active_installs_raw",
                     "downloaded": "downloaded", 
